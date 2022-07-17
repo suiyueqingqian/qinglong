@@ -12,14 +12,16 @@ diff_cron() {
     local list_task="$2"
     local list_add="$3"
     local list_drop="$4"
-    if [[ -s $list_task ]]; then
+    if [[ -s $list_task ]] && [[ -s $list_scripts ]]; then
         grep -vwf $list_task $list_scripts >$list_add
-    elif [[ ! -s $list_task ]] && [[ -s $list_scripts ]]; then
+        grep -vwf $list_scripts $list_task >$list_drop
+    fi
+
+    if [[ ! -s $list_task ]] && [[ -s $list_scripts ]]; then
         cp -f $list_scripts $list_add
     fi
-    if [[ -s $list_scripts ]]; then
-        grep -vwf $list_scripts $list_task >$list_drop
-    else
+
+    if [[ ! -s $list_scripts ]] && [[ -s $list_task ]]; then
         cp -f $list_task $list_drop
     fi
 }
@@ -229,15 +231,15 @@ run_extra_shell() {
 ## 脚本用法
 usage() {
     echo -e "本脚本用法："
-    echo -e "1. $cmd_update update                                                    # 更新并重启青龙"
-    echo -e "2. $cmd_update extra                                                     # 运行自定义脚本"
-    echo -e "3. $cmd_update raw <fileurl>                                             # 更新单个脚本文件"
-    echo -e "4. $cmd_update repo <repourl> <path> <blacklist> <dependence> <branch>   # 更新单个仓库的脚本"
-    echo -e "5. $cmd_update rmlog <days>                                              # 删除旧日志"
-    echo -e "6. $cmd_update bot                                                       # 启动tg-bot"
-    echo -e "7. $cmd_update check                                                     # 检测青龙环境并修复"
-    echo -e "8. $cmd_update resetlet                                                  # 重置登录错误次数"
-    echo -e "9. $cmd_update resettfa                                                  # 禁用两步登录"
+    echo -e "1. $cmd_update update                                                                  # 更新并重启青龙"
+    echo -e "2. $cmd_update extra                                                                   # 运行自定义脚本"
+    echo -e "3. $cmd_update raw <fileurl>                                                           # 更新单个脚本文件"
+    echo -e "4. $cmd_update repo <repourl> <path> <blacklist> <dependence> <branch> <extensions>    # 更新单个仓库的脚本"
+    echo -e "5. $cmd_update rmlog <days>                                                            # 删除旧日志"
+    echo -e "6. $cmd_update bot                                                                     # 启动tg-bot"
+    echo -e "7. $cmd_update check                                                                   # 检测青龙环境并修复"
+    echo -e "8. $cmd_update resetlet                                                                # 重置登录错误次数"
+    echo -e "9. $cmd_update resettfa                                                                # 禁用两步登录"
 }
 
 ## 更新qinglong
@@ -303,6 +305,10 @@ patch_version() {
     if ! type ts-node &>/dev/null; then
         pnpm i -g ts-node typescript tslib
     fi
+
+    # 兼容pnpm@7 
+    pnpm setup
+    source ~/.bashrc
 
     git config --global pull.rebase false
 
@@ -482,7 +488,6 @@ main() {
         run_extra_shell >>$log_path
         ;;
     repo)
-        get_user_info
         get_uniq_path "$p2" "$p6"
         if [[ -n $p2 ]]; then
             update_repo "$p2" "$p3" "$p4" "$p5" "$p6" "$p7"
@@ -492,7 +497,6 @@ main() {
         fi
         ;;
     raw)
-        get_user_info
         get_uniq_path "$p2"
         if [[ -n $p2 ]]; then
             update_raw "$p2"
@@ -534,7 +538,7 @@ main() {
         ;;
     esac
     local end_time=$(date '+%Y-%m-%d %H:%M:%S')
-    local diff_time=$(($(date +%s -d "$end_time") - $(date +%s -d "$begin_time")))
+    local diff_time=$(diff_time "%Y-%m-%d %H:%M:%S" "$begin_time" "$end_time")
     if [[ $p1 != "repo" ]] && [[ $p1 != "raw" ]]; then
         echo -e "\n## 执行结束... $end_time  耗时 $diff_time 秒" >>$log_path
         cat $log_path

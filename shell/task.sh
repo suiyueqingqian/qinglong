@@ -84,8 +84,8 @@ run_normal() {
         fi
     fi
 
-    local time=$(date)
-    log_time=$(date -d "$time" "+%Y-%m-%d-%H-%M-%S")
+    local time=$(date "+$time_format")
+    log_time=$(format_log_time "$time_format" "$time")
     log_dir_tmp="${file_param##*/}"
     if [[ $file_param =~ "/" ]]; then
         if [[ $file_param == /* ]]; then
@@ -99,12 +99,13 @@ run_normal() {
     [[ $log_dir_tmp_path ]] && log_dir_tmp="${log_dir_tmp_path}_${log_dir_tmp}"
     log_dir="${log_dir_tmp%.*}"
     log_path="$log_dir/$log_time.log"
-    cmd="&>> $dir_log/$log_path"
+    cmd=">> $dir_log/$log_path 2>&1"
     [[ "$show_log" == "true" ]] && cmd=""
     make_dir "$dir_log/$log_dir"
 
-    local begin_time=$(date -d "$time" "+%Y-%m-%d %H:%M:%S")
-    local begin_timestamp=$(date -d "$time" "+%s")
+    local begin_time=$(format_time "$time_format" "$time")
+    local begin_timestamp=$(format_timestamp "$time_format" "$time")
+    
     eval echo -e "\#\# 开始执行... $begin_time\\\n" $cmd
     [[ -f $task_error_log_path ]] && eval cat $task_error_log_path $cmd
 
@@ -118,12 +119,13 @@ run_normal() {
         cd ${relative_path}
         file_param=${file_param/$relative_path\//}
     fi
-    eval timeout -k 10s $command_timeout_time $which_program $file_param $cmd
+    
+    eval $timeoutCmd $which_program $file_param $cmd
 
     eval . $file_task_after "$@" $cmd
     local end_time=$(date '+%Y-%m-%d %H:%M:%S')
     local end_timestamp=$(date "+%s")
-    local diff_time=$(( $end_timestamp - $begin_timestamp ))
+    local diff_time=$(expr $end_timestamp - $begin_timestamp)
     [[ $id ]] && update_cron "\"$id\"" "1" "" "$log_path" "$begin_timestamp" "$diff_time"
     eval echo -e "\\\n\#\# 执行结束... $end_time  耗时 $diff_time 秒" $cmd
 }
@@ -154,8 +156,8 @@ run_concurrent() {
     [[ ! -z $cookieStr ]] && export ${env_param}=${cookieStr}
 
     define_program "$file_param"
-    local time=$(date)
-    log_time=$(date -d "$time" "+%Y-%m-%d-%H-%M-%S")
+    local time=$(date "+$time_format")
+    log_time=$(format_log_time "$time_format" "$time")
     log_dir_tmp="${file_param##*/}"
     if [[ $file_param =~ "/" ]]; then
         if [[ $file_param == /* ]]; then
@@ -169,12 +171,12 @@ run_concurrent() {
     [[ $log_dir_tmp_path ]] && log_dir_tmp="${log_dir_tmp_path}_${log_dir_tmp}"
     log_dir="${log_dir_tmp%.*}"
     log_path="$log_dir/$log_time.log"
-    cmd="&>> $dir_log/$log_path"
+    cmd=">> $dir_log/$log_path 2>&1"
     [[ "$show_log" == "true" ]] && cmd=""
     make_dir "$dir_log/$log_dir"
 
-    local begin_time=$(date -d "$time" "+%Y-%m-%d %H:%M:%S")
-    local begin_timestamp=$(date -d "$time" "+%s")
+    local begin_time=$(format_time "$time_format" "$time")
+    local begin_timestamp=$(format_timestamp "$time_format" "$time")
 
     eval echo -e "\#\# 开始执行... $begin_time\\\n" $cmd
     [[ -f $task_error_log_path ]] && eval cat $task_error_log_path $cmd
@@ -196,7 +198,7 @@ run_concurrent() {
     for i in "${!array[@]}"; do
         export ${env_param}=${array[i]}
         single_log_path="$dir_log/$log_dir/${single_log_time}_$((i + 1)).log"
-        timeout -k 10s $command_timeout_time $which_program $file_param &>$single_log_path &
+        eval $timeoutCmd $which_program $file_param &>$single_log_path &
     done
 
     wait
@@ -224,8 +226,8 @@ run_designated() {
     fi
 
     define_program "$file_param"
-    local time=$(date)
-    log_time=$(date -d "$time" "+%Y-%m-%d-%H-%M-%S")
+    local time=$(date "+$time_format")
+    log_time=$(format_log_time "$time_format" "$time")
     log_dir_tmp="${file_param##*/}"
     if [[ $file_param =~ "/" ]]; then
         if [[ $file_param == /* ]]; then
@@ -239,12 +241,12 @@ run_designated() {
     [[ $log_dir_tmp_path ]] && log_dir_tmp="${log_dir_tmp_path}_${log_dir_tmp}"
     log_dir="${log_dir_tmp%.*}"
     log_path="$log_dir/$log_time.log"
-    cmd="&>> $dir_log/$log_path"
+    cmd=">> $dir_log/$log_path 2>&1"
     [[ "$show_log" == "true" ]] && cmd=""
     make_dir "$dir_log/$log_dir"
 
-    local begin_time=$(date -d "$time" "+%Y-%m-%d %H:%M:%S")
-    local begin_timestamp=$(date -d "$time" "+%s")
+    local begin_time=$(format_time "$time_format" "$time")
+    local begin_timestamp=$(format_timestamp "$time_format" "$time")
 
     local envs=$(eval echo "\$${env_param}")
     local array=($(echo $envs | sed 's/&/ /g'))
@@ -274,7 +276,7 @@ run_designated() {
         cd ${relative_path}
         file_param=${file_param/$relative_path\//}
     fi
-    eval timeout -k 10s $command_timeout_time $which_program $file_param $cmd
+    eval $timeoutCmd $which_program $file_param $cmd
 
     eval . $file_task_after "$@" $cmd
     local end_time=$(date '+%Y-%m-%d %H:%M:%S')
@@ -288,8 +290,8 @@ run_designated() {
 run_else() {
     local file_param="$1"
     define_program "$file_param"
-    local time=$(date)
-    log_time=$(date -d "$time" "+%Y-%m-%d-%H-%M-%S")
+    local time=$(date "+$time_format")
+    log_time=$(format_log_time "$time_format" "$time")
     log_dir_tmp="${file_param##*/}"
     if [[ $file_param =~ "/" ]]; then
         if [[ $file_param == /* ]]; then
@@ -303,12 +305,12 @@ run_else() {
     [[ $log_dir_tmp_path ]] && log_dir_tmp="${log_dir_tmp_path}_${log_dir_tmp}"
     log_dir="${log_dir_tmp%.*}"
     log_path="$log_dir/$log_time.log"
-    cmd="&>> $dir_log/$log_path"
+    cmd=">> $dir_log/$log_path 2>&1"
     [[ "$show_log" == "true" ]] && cmd=""
     make_dir "$dir_log/$log_dir"
 
-    local begin_time=$(date -d "$time" "+%Y-%m-%d %H:%M:%S")
-    local begin_timestamp=$(date -d "$time" "+%s")
+    local begin_time=$(format_time "$time_format" "$time")
+    local begin_timestamp=$(format_timestamp "$time_format" "$time")
 
     eval echo -e "\#\# 开始执行... $begin_time\\\n" $cmd
     [[ -f $task_error_log_path ]] && eval cat $task_error_log_path $cmd
@@ -325,7 +327,7 @@ run_else() {
     fi
 
     shift
-    eval timeout -k 10s $command_timeout_time $which_program "$file_param" "$@" $cmd
+    eval $timeoutCmd $which_program "$file_param" "$@" $cmd
 
     eval . $file_task_after "$file_param" "$@" $cmd
     local end_time=$(date '+%Y-%m-%d %H:%M:%S')
@@ -348,6 +350,12 @@ main() {
     done
     [[ "$show_log" == "true" ]] && shift $(($OPTIND - 1))
 
+    timeoutCmd=""
+    if type timeout &>/dev/null; then
+        timeoutCmd="timeout -k 10s $command_timeout_time "
+    fi
+
+    time_format="%Y-%m-%d %H:%M:%S"
     if [[ $1 == *.js ]] || [[ $1 == *.py ]] || [[ $1 == *.sh ]] || [[ $1 == *.ts ]]; then
         case $# in
         1)

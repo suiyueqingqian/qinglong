@@ -11,6 +11,7 @@ const configPath = path.join(dataPath, 'config/');
 const scriptPath = path.join(dataPath, 'scripts/');
 const logPath = path.join(dataPath, 'log/');
 const uploadPath = path.join(dataPath, 'upload/');
+const bakPath = path.join(dataPath, 'bak/');
 const samplePath = path.join(rootPath, 'sample/');
 const confFile = path.join(configPath, 'config.sh');
 const authConfigFile = path.join(configPath, 'auth.json');
@@ -27,6 +28,7 @@ export default async () => {
   const configDirExist = await fileExist(configPath);
   const uploadDirExist = await fileExist(uploadPath);
   const sshDirExist = await fileExist(sshPath);
+  const bakDirExist = await fileExist(bakPath);
 
   if (!configDirExist) {
     fs.mkdirSync(configPath);
@@ -56,7 +58,19 @@ export default async () => {
     fs.mkdirSync(sshPath);
   }
 
+  if (!bakDirExist) {
+    fs.mkdirSync(bakPath);
+  }
+
   dotenv.config({ path: confFile });
+
+  // 声明QL_DIR环境变量
+  let qlHomePath = path.join(__dirname, '../../');
+  // 生产环境
+  if (qlHomePath.endsWith('/static/')) {
+    qlHomePath = path.join(qlHomePath, '../');
+  }
+  process.env.QL_DIR = qlHomePath;
 
   Logger.info('✌️ Init file down');
 };

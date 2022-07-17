@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import got from 'got';
 import iconv from 'iconv-lite';
+import { exec } from 'child_process';
 
 export function getFileContentByName(fileName: string) {
   if (fs.existsSync(fileName)) {
@@ -277,31 +278,80 @@ export async function concurrentRun(
   return replyList;
 }
 
-export function readDirs(dir: string, baseDir: string = '') {
+enum FileType {
+  'directory',
+  'file',
+}
+
+export function readDirs(
+  dir: string,
+  baseDir: string = '',
+  blacklist: string[] = [],
+) {
   const relativePath = path.relative(baseDir, dir);
   const files = fs.readdirSync(dir);
-  const result: any = files.map((file: string) => {
-    const subPath = path.join(dir, file);
-    const stats = fs.statSync(subPath);
-    const key = path.join(relativePath, file);
-    if (stats.isDirectory()) {
+  const result: any = files
+    .filter((x) => !blacklist.includes(x))
+    .map((file: string) => {
+      const subPath = path.join(dir, file);
+      const stats = fs.statSync(subPath);
+      const key = path.join(relativePath, file);
+      if (stats.isDirectory()) {
+        return {
+          title: file,
+          key,
+          type: 'directory',
+          disabled: true,
+          parent: relativePath,
+          children: readDirs(subPath, baseDir).sort(
+            (a: any, b: any) =>
+              (FileType as any)[a.type] - (FileType as any)[b.type],
+          ),
+        };
+      }
       return {
         title: file,
-        value: file,
+        type: 'file',
         key,
-        type: 'directory',
-        disabled: true,
         parent: relativePath,
-        children: readDirs(subPath, baseDir),
       };
-    }
-    return {
-      title: file,
-      value: file,
-      type: 'file',
-      key,
-      parent: relativePath,
-    };
-  });
+    });
+  return result.sort(
+    (a: any, b: any) => (FileType as any)[a.type] - (FileType as any)[b.type],
+  );
+}
+
+export function readDir(
+  dir: string,
+  baseDir: string = '',
+  blacklist: string[] = [],
+) {
+  const relativePath = path.relative(baseDir, dir);
+  const files = fs.readdirSync(dir);
+  const result: any = files
+    .filter((x) => !blacklist.includes(x))
+    .map((file: string) => {
+      const subPath = path.join(dir, file);
+      const stats = fs.statSync(subPath);
+      const key = path.join(relativePath, file);
+      return {
+        title: file,
+        type: stats.isDirectory() ? 'directory' : 'file',
+        key,
+        parent: relativePath,
+      };
+    });
   return result;
+}
+
+export function promiseExec(command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    exec(
+      command,
+      { maxBuffer: 200 * 1024 * 1024, encoding: 'utf8' },
+      (err, stdout, stderr) => {
+        resolve(stdout || stderr || JSON.stringify(err));
+      },
+    );
+  });
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, message, InputNumber, Form, Radio, Select, Input } from 'antd';
 import { request } from '@/utils/http';
 import config from '@/utils/config';
@@ -105,14 +105,20 @@ const SubscriptionModal = ({
   }) => {
     const [intervalType, setIntervalType] = useState('days');
     const [intervalNumber, setIntervalNumber] = useState<number>();
-    const intervalTypeChange = (e) => {
-      setIntervalType(e.target.value);
-      onChange?.({ type: e.target.value, value: intervalNumber });
+    const intervalTypeChange = (type: string) => {
+      setIntervalType(type);
+      if (intervalNumber && intervalNumber > 0) {
+        onChange?.({ type, value: intervalNumber });
+      }
     };
 
     const numberChange = (value: number) => {
       setIntervalNumber(value);
-      onChange?.({ type: intervalType, value });
+      if (!value) {
+        onChange?.(null);
+      } else {
+        onChange?.({ type: intervalType, value });
+      }
     };
 
     useEffect(() => {
@@ -183,6 +189,50 @@ const SubscriptionModal = ({
     );
   };
 
+  const onPaste = useCallback((e: any) => {
+    const text = e.clipboardData.getData('text');
+    if (!subscription && text.includes('ql ')) {
+      const [
+        ,
+        type,
+        url,
+        whitelist,
+        blacklist,
+        dependences,
+        branch,
+        extensions,
+      ] = text
+        .split(' ')
+        .map((x) => x.trim().replace(/\"/g, '').replace(/\'/, ''));
+      const _type =
+        type === 'raw'
+          ? 'file'
+          : url.startsWith('http')
+          ? 'public-repo'
+          : 'private-repo';
+
+      form.setFieldsValue({
+        type: _type,
+        url,
+        whitelist,
+        blacklist,
+        dependences,
+        branch,
+        extensions,
+        alias: formatAlias(url, branch),
+      });
+      setType(_type);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (visible) {
+      window.addEventListener('paste', onPaste);
+    } else {
+      window.removeEventListener('paste', onPaste);
+    }
+  }, [visible]);
+
   useEffect(() => {
     form.setFieldsValue(subscription || {});
     setType((subscription && subscription.type) || 'public-repo');
@@ -193,12 +243,39 @@ const SubscriptionModal = ({
     }
   }, [subscription, visible]);
 
+  const isFirefox = navigator.userAgent.includes('Firefox');
+  const isSafari =
+    navigator.userAgent.includes('Safari') &&
+    !navigator.userAgent.includes('Chrome');
+  const isQQBrowser = navigator.userAgent.includes('QQBrowser');
+
   return (
     <Modal
-      title={subscription ? '编辑订阅' : '新建订阅'}
+      title={
+        subscription ? (
+          '编辑订阅'
+        ) : (
+          <span>
+            新建订阅
+            <small
+              style={{
+                color: '#999',
+                fontWeight: 400,
+                fontSize: isFirefox ? 9 : 12,
+                marginLeft: 2,
+                zoom: isSafari ? 0.66 : 0.8,
+                letterSpacing: isQQBrowser ? -2 : 0,
+              }}
+            >
+              支持repo/raw命令，粘贴导入
+            </small>
+          </span>
+        )
+      }
       visible={visible}
       forceRender
       centered
+      maskClosable={false}
       onOk={() => {
         form
           .validateFields()

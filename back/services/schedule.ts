@@ -18,6 +18,7 @@ interface ScheduleTaskType {
 }
 
 export interface TaskCallbacks {
+  onBefore?: (startTime: dayjs.Dayjs) => Promise<void>;
   onStart?: (
     cp: ChildProcessWithoutNullStreams,
     startTime: dayjs.Dayjs,
@@ -45,6 +46,8 @@ export default class ScheduleService {
     return new Promise(async (resolve, reject) => {
       try {
         const startTime = dayjs();
+        await callbacks.onBefore?.(startTime);
+
         const cp = spawn(command, { shell: '/bin/bash' });
 
         // TODO:
@@ -106,6 +109,7 @@ export default class ScheduleService {
   async createCronTask(
     { id = 0, command, name, schedule = '' }: ScheduleTaskType,
     callbacks?: TaskCallbacks,
+    runImmediately = false,
   ) {
     const _id = this.formatId(id);
     this.logger.info(
@@ -122,6 +126,10 @@ export default class ScheduleService {
         await this.runTask(command, callbacks);
       }),
     );
+
+    if (runImmediately) {
+      await this.runTask(command, callbacks);
+    }
   }
 
   async cancelCronTask({ id = 0, name }: ScheduleTaskType) {
@@ -160,9 +168,17 @@ export default class ScheduleService {
       },
     );
 
-    const job = new LongIntervalJob({ ...schedule, runImmediately }, task, _id);
+    const job = new LongIntervalJob(
+      { ...schedule, runImmediately: false },
+      task,
+      _id,
+    );
 
     this.intervalSchedule.addIntervalJob(job);
+
+    if (runImmediately) {
+      await this.runTask(command, callbacks);
+    }
   }
 
   async cancelIntervalTask({ id = 0, name }: ScheduleTaskType) {
